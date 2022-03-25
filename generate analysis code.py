@@ -29,6 +29,11 @@ for run in run_extracted:
         sh_run.write(comm + "\n")
         comm = "echo =================================================\necho 已将%s比对到宿主基因组！\necho =================================================" % run
         sh_run.write(comm + "\n")
+        # 删除fastq文件
+        comm = "rm data/fastq/*.fastq"
+        sh_run.write(comm + "\n")
+        comm = "echo =================================================\necho 已删除%s的fastq文件！\necho =================================================" % run
+        sh_run.write(comm + "\n")
         # sam文件转换成bam文件
         comm = "samtools view -@ 30 -bS results/1-sambybowtie/%s.sam > results/2-bamfile/%s.bam" % (run, run)
         sh_run.write(comm + "\n")
@@ -70,17 +75,54 @@ for run in run_extracted:
         comm = "echo =================================================\necho 已完成%s的第二次质控！\necho =================================================" % run
         sh_run.write(comm + "\n")
         # megahit组装
-        comm = "mkdir results/8-megahit.results/%s" % run
+        comm = "mkdir results/8-megahit/%s" % run
         sh_run.write(comm + "\n")
-        comm = "megahit --12 results/5-new.fastq/%s.fastq --k-list 35 -o results/8-megahit.results/%s/out" % (run, run)
+        comm = "megahit --12 results/5-new.fastq/%s.fastq --k-list 35 -o results/8-megahit/%s/out" % (run, run)
         sh_run.write(comm + "\n")
         comm = "echo =================================================\necho 已完成%s的megahit组装！\necho =================================================" % run
         sh_run.write(comm + "\n")
         # metaquast评估组装质量
-        comm = "mkdir results/results/9-metaquast.results/%s" % run
+        comm = "mkdir results/9-metaquast/%s" % run
         sh_run.write(comm + "\n")
-        comm = "/usr/bin/metaquast.py -o results/results/9-metaquast.results/%s results/8-megahit.results/%s/out/final.contigs.fa" % (run, run)
+        comm = "/usr/bin/metaquast.py -o results/9-metaquast/%s results/8-megahit/%s/out/final.contigs.fa" % (run, run)
         sh_run.write(comm + "\n")
         comm = "echo =================================================\necho 已完成%s的组装质量评估！\necho =================================================" % run
         sh_run.write(comm + "\n")
+        # prodigal预测基因
+        comm = "mkdir results/10-prodigal/%s" % run
+        sh_run.write(comm + "\n")
+        comm = "prodigal -i results/8-megahit/%s/out/final.contigs.fa -a results/10-prodigal/%s/res.pep -d results/10-prodigal/%s/res.cds -f gff -g 11 -o results/10-prodigal/%s/res.gff -p single -s results/10-prodigal/%s/res.stat"% (run,run,run,run,run)
+        sh_run.write(comm + "\n")
+        comm = "echo =================================================\necho 已完成%s的基因预测！\necho =================================================" % run
+        sh_run.write(comm + "\n")
+        # 重新命名基因和蛋白名称，加上样品标签
+        comm = "python code/add.sample.id.py -i results/10-prodigal/%s/res.cds -label %s -o results/10-prodigal/%s/res.cds"% (run, run, run)
+        sh_run.write(comm + "\n")
+        comm = "python code/add.sample.id.py -i results/10-prodigal/%s/res.pep -label %s -o results/10-prodigal/%s/res.pep"% (run, run, run)
+        sh_run.write(comm + "\n")
+        comm = "echo =================================================\necho 已对%s的基因序列和蛋白序列添加样品ID！\necho =================================================" % run
+        sh_run.write(comm + "\n")
+        # 删除gff文件中的注释行
+        comm = "sed '/#/d' results/10-prodigal/%s/res.gff > results/10-prodigal/%s/res.gff"% (run, run)
+        sh_run.write(comm + "\n")
+        comm = "echo =================================================\necho 已删除%s的gff文件的注释行！\necho =================================================" % run
+        sh_run.write(comm + "\n")
+        # 筛选特定长度的基因
+        comm = "python code/get.wanted.long.gene.py -i results/10-prodigal/%s/res.cds -min 100 -o results/10-prodigal/%s/res.cds"% (run, run)
+        sh_run.write(comm + "\n")
+        comm = "echo =================================================\necho 已筛选%s长度100以上的基因！\necho =================================================" % run
+        sh_run.write(comm + "\n")
+
+# 合并所有的CDS
+comm = "python code/merge.cds.py"
+sh_run.write(comm + "\n")
+comm = "echo =================================================\necho 已合并所有CDS！\necho ================================================="
+sh_run.write(comm + "\n")
+
+# MMseqs2聚类
+comm = "mmseqs easy-cluster results/10-prodigal/all.cds.fa results/11-mmseqs2/clusterRes results/11-mmseqs2/tmp --min-seq-id 0.5 -c 0.8 --cov-mode 1"
+sh_run.write(comm + "\n")
+comm = "echo =================================================\necho 已完成MMseqs2聚类！\necho ================================================="
+sh_run.write(comm + "\n")
+
 sh_run.close()
